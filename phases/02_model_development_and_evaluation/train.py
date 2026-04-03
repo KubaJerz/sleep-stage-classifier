@@ -110,7 +110,7 @@ def train():
     # Training loop
     losses = []
     f1_scores = []
-    f1_metric = F1Score(num_classes=NUM_CLASSES, average="macro").to(device)
+    f1_metric = F1Score(task="multiclass", num_classes=NUM_CLASSES, average="macro").to(device)
     num_steps = 0
     total_samples = 0
     train_start = time.time()
