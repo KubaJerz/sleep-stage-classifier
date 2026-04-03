@@ -6,7 +6,7 @@ import torch.nn as nn
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from torchlightning import F1Score
+from torchmetrics import F1Score
 
 from prepare import get_dataloaders, evaluate
 
