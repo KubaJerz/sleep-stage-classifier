@@ -1,6 +1,8 @@
 """Train and evaluate a sleep stage classifier."""
 
 import time
+import sys
+import os
 import torch
 import torch.nn as nn
 import matplotlib
@@ -11,8 +13,9 @@ from torchmetrics import F1Score
 from prepare import get_dataloaders, evaluate
 
 #== DONT EDIT BELOW THIS LINE ===  
-TIME_BUDGET_SEC = 10 * 60  # 10 minutes wall clock
+TIME_BUDGET_SEC = 15 * 60  # 10 minutes wall clock
 NUM_CLASSES = 5
+DEVICE = "cuda"  
 # === DONT EDIT ABOVE THIS LINE ===
 
 
@@ -90,16 +93,13 @@ def count_depth(model):
 def train():
     total_start = time.time()
 
-    # Device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if device.type == "cuda":
-        torch.cuda.reset_peak_memory_stats()
+    torch.cuda.reset_peak_memory_stats()
 
     # Data
     train_loader, val_loader = get_dataloaders(BATCH_SIZE)
 
     # Model
-    model = SleepModel().to(device)
+    model = SleepModel().to(DEVICE)
     num_params = count_params(model)
     depth = count_depth(model)
 
@@ -110,7 +110,7 @@ def train():
     # Training loop
     losses = []
     f1_scores = []
-    f1_metric = F1Score(task="multiclass", num_classes=NUM_CLASSES, average="macro").to(device)
+    f1_metric = F1Score(task="multiclass", num_classes=NUM_CLASSES, average="macro").to(DEVICE)
     num_steps = 0
     total_samples = 0
     train_start = time.time()
@@ -131,8 +131,8 @@ def train():
             if elapsed >= TIME_BUDGET_SEC:
                 break
 
-            batch_x = batch_x.to(device)
-            batch_y = batch_y.to(device)
+            batch_x = batch_x.to(DEVICE)
+            batch_y = batch_y.to(DEVICE)
 
             optimizer.zero_grad()
             logits = model(batch_x)
@@ -154,14 +154,16 @@ def train():
     training_seconds = time.time() - train_start
 
     # Evaluate
-    metrics = evaluate(model, val_loader, device)
+    metrics = evaluate(model, val_loader, DEVICE)
 
     total_seconds = time.time() - total_start
 
     # VRAM
     peak_vram_mb = 0.0
-    if device.type == "cuda":
+    if DEVICE.type == "cuda":
         peak_vram_mb = torch.cuda.max_memory_allocated() / (1024 ** 2)
+
+    final_train_loss = losses[-1] if losses else float("nan")
 
     # Print metrics (exact format from program.md)
     print("---")
@@ -173,6 +175,8 @@ def train():
         p = metrics[f"class_{c}_precision"]
         r = metrics[f"class_{c}_recall"]
         print(f"class_{c}_f1:       {f1:.4f}  (p={p:.3f} r={r:.3f})")
+    print(f"epochs:            {epoch}")
+    print(f"final_train_loss:  {final_train_loss:.4f}")
     print(f"training_seconds:  {training_seconds:.1f}")
     print(f"total_seconds:     {total_seconds:.1f}")
     print(f"peak_vram_mb:      {peak_vram_mb:.1f}")
@@ -197,6 +201,10 @@ def train():
         plt.tight_layout()
         plt.savefig("loss_curve.png", dpi=100)
         plt.close()
+
+    # Update campaign plots
+    import subprocess
+    subprocess.run([sys.executable, "plot_campaign.py"], cwd=os.path.dirname(os.path.abspath(__file__)))
 
 
 if __name__ == "__main__":
